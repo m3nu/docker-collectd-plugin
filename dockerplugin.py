@@ -30,7 +30,7 @@ import time
 import sys
 import os
 
-PREFIX = "container-"
+PREFIX = "con-"
 
 if __name__ != "__main__":
     import collectd
@@ -75,7 +75,7 @@ class Stats:
     def emit(cls, container, type, value, t="", type_instance=""):
         val = collectd.Values()
         val.plugin = "docker"
-        val.plugin_instance = PREFIX + container[:12]
+        val.plugin_instance = container
         if type:
             val.type = type
         if type_instance:
@@ -98,12 +98,12 @@ class BlkioStats(Stats):
         for key, values in stats.items():
             values = [int(x["value"]) for x in values]
             if len(values) == 5:
-                cls.emit(container["Id"], "blkio", values,
+                cls.emit(container["Names"][0].replace('/', ''), "blkio", values,
                          type_instance=key, t=t)
             elif values:
                 # For some reason, some fields contains only one value and the
                 # 'op' field is empty. Need to investigate this
-                cls.emit(container["Id"], "blkio.single", values,
+                cls.emit(container["Names"][0].replace('/', ''), "blkio.single", values,
                          type_instance=key, t=t)
 
 
@@ -113,17 +113,17 @@ class CpuStats(Stats):
         cpu_usage = stats["cpu_usage"]
         percpu = cpu_usage["percpu_usage"]
         for cpu, value in enumerate(percpu):
-            cls.emit(container["Id"], "cpu.percpu.usage", [value],
+            cls.emit(container["Names"][0].replace('/', ''), "cpu.percpu.usage", [value],
                      type_instance="cpu%d" % (cpu,), t=t)
 
         items = stats["throttling_data"].items()
         items.sort()
-        cls.emit(container["Id"], "cpu.throttling_data",
+        cls.emit(container["Names"][0].replace('/', ''), "cpu.throttling_data",
                  [x[1] for x in items], t=t)
 
         values = [cpu_usage["total_usage"], cpu_usage["usage_in_kernelmode"],
                   cpu_usage["usage_in_usermode"], stats["system_cpu_usage"]]
-        cls.emit(container["Id"], "cpu.usage", values, t=t)
+        cls.emit(container["Names"][0].replace('/', ''), "cpu.usage", values, t=t)
 
 
 class NetworkStats(Stats):
@@ -131,23 +131,23 @@ class NetworkStats(Stats):
     def read(cls, container, stats, t):
         items = stats.items()
         items.sort()
-        cls.emit(container["Id"], "network.usage", [x[1] for x in items], t=t)
+        cls.emit(container["Names"][0].replace('/', ''), "network.usage", [x[1] for x in items], t=t)
 
 
 class MemoryStats(Stats):
     @classmethod
     def read(cls, container, stats, t):
         values = [stats["failcnt"], stats["max_usage"], stats["usage"]]
-        cls.emit(container["Id"], "memory.usage", values, t=t)
+        cls.emit(container["Names"][0].replace('/', ''), "memory.usage", values, t=t)
 
         for key, value in stats["stats"].items():
-            cls.emit(container["Id"], "memory.stats", [value],
+            cls.emit(container["Names"][0].replace('/', ''), "memory.stats", [value],
                      type_instance=key, t=t)
 
 
 class DockerPlugin:
     CLASSES = {"network": NetworkStats,
-               "blkio_stats": BlkioStats,
+               #"blkio_stats": BlkioStats,
                "cpu_stats": CpuStats,
                "memory_stats": MemoryStats}
     BASE_URL = 'unix://var/run/docker.sock'
